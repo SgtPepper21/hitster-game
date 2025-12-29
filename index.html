@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Hitster Game</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            color: white;
+        }
+        
+        .container {
+            max-width: 500px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            color: #333;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #667eea;
+            font-size: 2em;
+        }
+        
+        .auth-section, .game-section {
+            display: none;
+        }
+        
+        .auth-section.active, .game-section.active {
+            display: block;
+        }
+        
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 15px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        #video-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin: 20px auto;
+            display: none;
+        }
+        
+        #video-container.active {
+            display: block;
+        }
+        
+        video {
+            width: 100%;
+            border-radius: 10px;
+            border: 3px solid #667eea;
+        }
+        
+        canvas {
+            display: none;
+        }
+        
+        .status {
+            text-align: center;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+        
+        .status.info {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .status.success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+        
+        .status.error {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+        
+        .now-playing {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            color: white;
+            text-align: center;
+        }
+        
+        .now-playing h3 {
+            margin-bottom: 10px;
+        }
+        
+        .now-playing p {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .user-info {
+            text-align: center;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .instruction {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border-left: 4px solid #ff9800;
+            color: #e65100;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Custom Hitster</h1>
+        
+        <!-- Authentication Section -->
+        <div class="auth-section active">
+            <div class="instruction">
+                <strong>Setup Required:</strong>
+                <ol style="margin-left: 20px; margin-top: 10px;">
+                    <li>You need a Spotify Premium account</li>
+                    <li>Click "Login with Spotify" below</li>
+                    <li>Grant permissions to play music</li>
+                </ol>
+            </div>
+            <button id="login-btn">Login with Spotify</button>
+            <div id="auth-status" class="status" style="display: none;"></div>
+        </div>
+        
+        <!-- Game Section -->
+        <div class="game-section">
+            <div class="user-info">
+                <strong>Logged in as:</strong> <span id="user-name"></span>
+                <button id="logout-btn" style="margin-top: 10px; padding: 10px;">Logout</button>
+            </div>
+            
+            <button id="scan-btn">Scan QR Code</button>
+            
+            <div id="video-container">
+                <video id="video" autoplay playsinline></video>
+                <canvas id="canvas"></canvas>
+            </div>
+            
+            <div id="game-status" class="status" style="display: none;"></div>
+            
+            <div id="now-playing" class="now-playing" style="display: none;">
+                <h3>Now Playing:</h3>
+                <p id="current-song"></p>
+                <p id="current-artist" style="font-size: 14px; margin-top: 5px; opacity: 0.9;"></p>
+            </div>
+            
+            <button id="stop-btn" style="display: none; background: #d32f2f;">Stop Music</button>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // IMPORTANT: Replace these values!
+        // ============================================
+        const CLIENT_ID = 'bb1fbe42aa7b4380b4adc19bf8192652';
+        const REDIRECT_URI = 'https://SgtPepper21.github.io/hitster-game/'; // e.g., 'https://yourusername.github.io/hitster/'
+        
+        // Spotify API configuration
+        const SCOPES = 'streaming user-read-email user-read-private user-modify-playback-state user-read-playback-state';
+        const AUTH_ENDPOINT = 'https://accounts.spotify.com/authorize';
+        
+        // State management
+        let accessToken = null;
+        let player = null;
+        let deviceId = null;
+        let stream = null;
+        let scanningActive = false;
+        
+        // DOM elements
+        const authSection = document.querySelector('.auth-section');
+        const gameSection = document.querySelector('.game-section');
+        const loginBtn = document.getElementById('login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const scanBtn = document.getElementById('scan-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const videoContainer = document.getElementById('video-container');
+        const authStatus = document.getElementById('auth-status');
+        const gameStatus = document.getElementById('game-status');
+        const nowPlaying = document.getElementById('now-playing');
+        const currentSong = document.getElementById('current-song');
+        const currentArtist = document.getElementById('current-artist');
+        const userName = document.getElementById('user-name');
+        
+        // Initialize
+        window.onload = () => {
+            checkAuth();
+            setupEventListeners();
+        };
+        
+        function setupEventListeners() {
+            loginBtn.addEventListener('click', login);
+            logoutBtn.addEventListener('click', logout);
+            scanBtn.addEventListener('click', startScanning);
+            stopBtn.addEventListener('click', stopMusic);
+        }
+        
+        // Authentication
+        function login() {
+            const authUrl = `${AUTH_ENDPOINT}?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&response_type=token&show_dialog=true`;
+            window.location = authUrl;
+        }
+        
+        function logout() {
+            accessToken = null;
+            localStorage.removeItem('spotify_access_token');
+            if (player) {
+                player.disconnect();
+            }
+            authSection.classList.add('active');
+            gameSection.classList.remove('active');
+        }
+        
+        function checkAuth() {
+            // Check URL hash for token
+            const hash = window.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            const token = params.get('access_token');
+            
+            if (token) {
+                accessToken = token;
+                localStorage.setItem('spotify_access_token', token);
+                window.location.hash = '';
+                initializeSpotify();
+            } else {
+                // Check localStorage
+                const savedToken = localStorage.getItem('spotify_access_token');
+                if (savedToken) {
+                    accessToken = savedToken;
+                    initializeSpotify();
+                }
+            }
+        }
+        
+        async function initializeSpotify() {
+            showStatus(authStatus, 'Initializing Spotify...', 'info');
+            
+            try {
+                // Get user info
+                const userResponse = await fetch('https://api.spotify.com/v1/me', {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                
+                if (!userResponse.ok) {
+                    throw new Error('Failed to authenticate');
+                }
+                
+                const userData = await userResponse.json();
+                userName.textContent = userData.display_name || userData.email;
+                
+                // Initialize Spotify Web Playback SDK
+                if (!window.Spotify) {
+                    await loadSpotifySDK();
+                }
+                
+                initializePlayer();
+                
+                authSection.classList.remove('active');
+                gameSection.classList.add('active');
+                hideStatus(authStatus);
+                
+            } catch (error) {
+                console.error('Initialization error:', error);
+                showStatus(authStatus, 'Authentication failed. Please try logging in again.', 'error');
+                logout();
+            }
+        }
+        
+        function loadSpotifySDK() {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://sdk.scdn.co/spotify-player.js';
+                script.onload = () => {
+                    window.onSpotifyWebPlaybackSDKReady = resolve;
+                };
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+        
+        function initializePlayer() {
+            player = new Spotify.Player({
+                name: 'Custom Hitster Web Player',
+                getOAuthToken: cb => { cb(accessToken); },
+                volume: 0.8
+            });
+            
+            player.addListener('ready', ({ device_id }) => {
+                console.log('Ready with Device ID', device_id);
+                deviceId = device_id;
+                showStatus(gameStatus, 'Ready to scan! Click "Scan QR Code" to begin.', 'success');
+            });
+            
+            player.addListener('not_ready', ({ device_id }) => {
+                console.log('Device ID has gone offline', device_id);
+            });
+            
+            player.addListener('player_state_changed', state => {
+                if (!state) return;
+                
+                if (state.paused) {
+                    stopBtn.style.display = 'none';
+                }
+            });
+            
+            player.connect();
+        }
+        
+        // QR Code Scanning
+        async function startScanning() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                video.srcObject = stream;
+                videoContainer.classList.add('active');
+                scanBtn.style.display = 'none';
+                scanningActive = true;
+                showStatus(gameStatus, 'Scanning for QR code...', 'info');
+                requestAnimationFrame(scanQRCode);
+            } catch (error) {
+                console.error('Camera error:', error);
+                showStatus(gameStatus, 'Could not access camera. Please grant camera permissions.', 'error');
+            }
+        }
+        
+        function scanQRCode() {
+            if (!scanningActive) return;
+            
+            const canvasElement = canvas;
+            const context = canvasElement.getContext('2d');
+            
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvasElement.width = video.videoWidth;
+                canvasElement.height = video.videoHeight;
+                context.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+                
+                const imageData = context.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                
+                if (code) {
+                    scanningActive = false;
+                    stopCamera();
+                    handleQRCode(code.data);
+                    return;
+                }
+            }
+            
+            requestAnimationFrame(scanQRCode);
+        }
+        
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            videoContainer.classList.remove('active');
+            scanBtn.style.display = 'block';
+        }
+        
+        async function handleQRCode(data) {
+            try {
+                const songData = JSON.parse(data);
+                showStatus(gameStatus, 'Found song! Searching Spotify...', 'info');
+                await playTrack(songData);
+            } catch (error) {
+                console.error('QR decode error:', error);
+                showStatus(gameStatus, 'Invalid QR code. Please try again.', 'error');
+                setTimeout(() => startScanning(), 2000);
+            }
+        }
+        
+        async function playTrack(songData) {
+            try {
+                // Search for the track
+                const query = encodeURIComponent(`${songData.artist} ${songData.song}`);
+                const searchResponse = await fetch(`https://api.spotify.com/v1/search?q=${query}&type=track&limit=1`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                
+                if (!searchResponse.ok) {
+                    throw new Error('Search failed');
+                }
+                
+                const searchData = await searchResponse.json();
+                
+                if (!searchData.tracks.items.length) {
+                    showStatus(gameStatus, 'Song not found on Spotify. Try another card.', 'error');
+                    setTimeout(() => startScanning(), 3000);
+                    return;
+                }
+                
+                const track = searchData.tracks.items[0];
+                
+                // Play the track
+                const playResponse = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        uris: [track.uri]
+                    })
+                });
+                
+                if (!playResponse.ok) {
+                    throw new Error('Playback failed');
+                }
+                
+                // Update UI
+                currentSong.textContent = track.name;
+                currentArtist.textContent = track.artists.map(a => a.name).join(', ');
+                nowPlaying.style.display = 'block';
+                stopBtn.style.display = 'block';
+                hideStatus(gameStatus);
+                
+            } catch (error) {
+                console.error('Playback error:', error);
+                showStatus(gameStatus, 'Failed to play song. Make sure Spotify is active on a device.', 'error');
+                setTimeout(() => startScanning(), 3000);
+            }
+        }
+        
+        async function stopMusic() {
+            try {
+                await fetch('https://api.spotify.com/v1/me/player/pause', {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                nowPlaying.style.display = 'none';
+                stopBtn.style.display = 'none';
+                showStatus(gameStatus, 'Music stopped. Scan another card!', 'info');
+            } catch (error) {
+                console.error('Stop error:', error);
+            }
+        }
+        
+        // UI helpers
+        function showStatus(element, message, type) {
+            element.textContent = message;
+            element.className = `status ${type}`;
+            element.style.display = 'block';
+        }
+        
+        function hideStatus(element) {
+            element.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
